@@ -1,0 +1,48 @@
+# MikroTik TR069 import script
+# to easily add other MikroTik devices into TR069
+# add to system/scripts on device as a script and run
+
+# replace the dummy certificiate below and set the ACS URL
+
+:local acsurl "https://acs.mycompany.com:7547"
+
+:global acsCaCertTxt "-----BEGIN CERTIFICATE-----
+MIIDCDCCAfCgAwIBAgIIBQ68Phid9+owDQYJKoZIhvcNAQELBQAwDzENMAsGA1UE
+AwwEbXlDYTAeFw03MDAxMDIwMDM0MDZaFw03MTAxMDIwMDM0MDZaMA8xDTALBgNV
+BAMMBG15Q2EwggEiMA0GCSqGSIb3DQEBAQUAA4IBDwAwggEKAoIBAQDILvvnEc/8
+53jevX3MW4qjn9CNdHLexUZSL8qSXzE5sik1kaNOdckOXC8/Ku0qO95elaBaXmLe
+QsIQbVtZ768SBQc7q4RaG3AEauLfNl0BS3kl91/nSvYKp20Nvn7LP7CVZj8D81S+
+z4lYgab00X6hT65r8cOI4idaJNWkB9+vFujiPpg0H4IEthgslvCu0i2C7VMrZps/
+lTI4xD7kUU4ySzpMUDD3SiA1cEtR8SC5gspYFqtUB2Chk4DTeqWzPCT9eIKclIKM
+eh/5w7eLCKyjqIBDwWixuHGW7uFffHjmkgtmzG35W/qmgXGXG+BC8NomxmKxdxCT
+ZpQCbisMKieTAgMBAAGjaDBmMA8GA1UdEwEB/wQFMAMBAf8wDgYDVR0PAQH/BAQD
+AgEGMB0GA1UdDgQWBBR5poVfi8tXHrD3sEidlLLzm1k3xzAkBglghkgBhvhCAQ0E
+FxYVR2VuZXJhdGVkIGJ5IFJvdXRlck9TMA0GCSqGSIb3DQEBCwUAA4IBAQChVt7s
+YNL+U7p0OoxdKgCqP3JyrVOAYDs51243IR83BM3WQybWaDcEv50/R668icnnNHgN
+GKQ6OjgQbia7ZW38JWlD/n59WDjk9T63lHh5RHmrhPlIDUN8Wh89v6N2q8YQy+rj
+o2lOcbZOJTSIirSBcokMRw45yJNO9HU02E9Bl5nb1hq6/xP4pbTS3t8bL+Xpg0eJ
+herz/Ap62k/ToRP+yFYN90z8sDHHvKWnq1W60xreLQ95D5IOego0dIWDC8J/a551
+Z2AklvEhKfJTQ6zylrhPDy5bySadxy8lAV82+gEZ1AQyS2UXzRAUgCCCzdEmgiWE
+6Du6ubASPAEmYfhC
+-----END CERTIFICATE-----";
+
+/file print file=tmp_acs_ca_cert.txt;
+:delay 2;
+/file set tmp_acs_ca_cert.txt contents=$acsCaCertTxt;
+/certificate import file-name=tmp_acs_ca_cert.txt passphrase="";
+/file remove tmp_acs_ca_cert.txt;
+
+:local osver [:pick [/system resource get version] 0 [:find [/system resource get version] " " -1]]
+:local osarch [/system resource get architecture-name]
+
+/tool fetch url="https://download.mikrotik.com/routeros/$osver/tr069-client-$osver-$osarch.npk" mode=https
+
+/system script add name=tr069-config owner=admin policy=ftp,reboot,read,write,policy,test,password,sniff,sensitive,romon source="/tr069-client set acs-url=\
+    $acsurl connection-request-password=remote connection-request-username=remote periodic-inform-interval=5m enabled=yes\r\
+    \n/system scheduler remove tr069-config-scheduler\r\
+    \n/system script remove tr069-config"
+
+/system scheduler
+add name=tr069-config-scheduler on-event=tr069-config policy=ftp,reboot,read,write,policy,test,password,sniff,sensitive,romon start-time=startup
+
+/system reboot
